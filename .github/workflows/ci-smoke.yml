@@ -1,0 +1,30 @@
+name: CI Smoke
+
+# Thin smoke test so future Payments Central API changes break this example
+# loudly. Runs the demo app against a recorded mock of the core API that
+# asserts every request matches the current contract — no secrets required.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (incl. dev)
+        run: npm install --include=dev --no-audit --no-fund
+
+      - name: Type-check / build
+        run: npm run build
+
+      - name: Run smoke (charge -> list -> get -> refund -> checkout)
+        run: npm run smoke

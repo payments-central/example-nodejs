@@ -86,7 +86,7 @@ app.get('/', (_req: Request, res: Response) => {
 app.post('/demo/charge', async (_req: Request, res: Response) => {
   try {
     const transaction = await client.charge({
-      amount: 10.00,
+      amount: 1000, // $10.00 in minor units (cents)
       currency: 'USD',
       gateway: 'stripe',
       merchant_ref: `demo-${Date.now()}`,
@@ -100,7 +100,7 @@ app.post('/demo/charge', async (_req: Request, res: Response) => {
 
 app.get('/demo/transactions', async (_req: Request, res: Response) => {
   try {
-    const result = await client.listTransactions(10, 0);
+    const result = await client.listTransactions(1, 10);
     res.json(result);
   } catch (err) {
     res.status(502).json({ error: (err as Error).message });
@@ -118,7 +118,11 @@ app.get('/demo/transaction/:id', async (req: Request, res: Response) => {
 
 app.post('/demo/refund/:id', async (req: Request, res: Response) => {
   try {
+    // core requires an explicit refund amount (minor units); fetch the
+    // transaction first so we can issue a full refund for its amount.
+    const tx = await client.getTransaction(req.params.id);
     const refund = await client.refund(req.params.id, {
+      amount: tx.amount,
       reason: 'Demo refund from Payments Central Node.js sample',
     });
     res.json(refund);
@@ -133,8 +137,9 @@ app.post('/demo/checkout', async (req: Request, res: Response) => {
 
   try {
     const session = await client.createCheckoutSession({
-      amount: 25.00,
+      amount: 2500, // $25.00 in minor units (cents)
       currency: 'USD',
+      gateway: 'stripe', // core requires a gateway
       description: 'Demo checkout from Payments Central Node.js sample',
       success_url: `${base}/demo/success`,
       cancel_url: `${base}/demo/cancel`,

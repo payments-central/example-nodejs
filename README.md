@@ -66,6 +66,14 @@ npm run build   # compiles TypeScript to dist/
 npm start       # runs the compiled output
 ```
 
+## Continuous integration
+
+A smoke test (`npm run smoke`) drives the demo through the full flow —
+charge → list → get → refund → checkout — against a recorded mock of the core
+API that asserts every request matches the current contract. It needs no
+credentials, so it runs in CI on every push/PR (`.github/workflows/ci-smoke.yml`)
+and fails loudly if the example ever drifts from the API.
+
 ## Further reading
 
 Full API reference: [https://developer.payments-central.com](https://developer.payments-central.com)

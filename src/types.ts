@@ -7,13 +7,15 @@ export interface ChargeParams {
 }
 
 export interface RefundParams {
-  amount?: number;
-  reason: string;
+  // core requires an explicit amount (minor units); `reason` is accepted but ignored.
+  amount: number;
+  reason?: string;
 }
 
 export interface CheckoutSessionParams {
   amount: number;
   currency: string;
+  gateway: string; // core requires a gateway (e.g. "stripe")
   description: string;
   success_url: string;
   cancel_url: string;
@@ -35,8 +37,8 @@ export interface Transaction {
 export interface TransactionList {
   data: Transaction[];
   total: number;
+  page: number;
   limit: number;
-  offset: number;
 }
 
 export interface CheckoutSession {

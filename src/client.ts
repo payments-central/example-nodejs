@@ -68,10 +68,12 @@ export class PaymentsCentralClient {
     return this.request<Transaction>('GET', `/api/v1/transactions/${id}`);
   }
 
-  listTransactions(limit = 10, offset = 0): Promise<TransactionList> {
+  // core paginates with `page` (1-based) and `limit`; `offset` is ignored.
+  // Response shape: { data, total, page, limit }.
+  listTransactions(page = 1, limit = 10): Promise<TransactionList> {
     return this.request<TransactionList>('GET', '/api/v1/transactions', undefined, {
+      page,
       limit,
-      offset,
     });
   }
 
