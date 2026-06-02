@@ -7,9 +7,14 @@
  *
  *   charge -> list -> get -> refund -> hosted checkout
  *
+ * The refund leg drives the full money lifecycle the way UAT requires
+ * (RED-52): charge -> authorize -> capture -> refund. The mock asserts the
+ * authorize and capture calls happen before refund so the example can never
+ * regress to refunding a `pending` charge directly.
+ *
  * If the example ever drifts from the API (wrong query params, missing
- * `gateway`, missing refund `amount`, etc.) the relevant assertion fails and
- * this process exits non-zero, breaking CI loudly.
+ * `gateway`, missing refund `amount`, skipped authorize/capture, etc.) the
+ * relevant assertion fails and this process exits non-zero, breaking CI loudly.
  */
 import express, { type Request, type Response } from 'express';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -35,6 +40,10 @@ const TX = {
   created_at: '2026-01-01T00:00:00.000Z',
   updated_at: '2026-01-01T00:00:00.000Z',
 };
+
+// Tracks the lifecycle so the refund assertion can prove authorize + capture
+// ran first (charge -> authorize -> capture -> refund), matching UAT (RED-52).
+const calls = { authorize: 0, capture: 0 };
 
 function startMock(): Promise<ReturnType<typeof app.listen>> {
   const app = express();
@@ -69,7 +78,23 @@ function startMock(): Promise<ReturnType<typeof app.listen>> {
     res.json(TX);
   });
 
+  // pending -> authorized. `gateway_ref` is optional (core mints one).
+  app.post('/api/v1/transactions/:id/authorize', (_req: Request, res: Response) => {
+    calls.authorize++;
+    res.json({ ...TX, status: 'authorized' });
+  });
+
+  // authorized -> captured. core captures the full authorized amount.
+  app.post('/api/v1/transactions/:id/capture', (_req: Request, res: Response) => {
+    check(calls.authorize > 0, 'capture: must be preceded by an authorize call');
+    calls.capture++;
+    res.json({ ...TX, status: 'captured' });
+  });
+
   app.post('/api/v1/transactions/:id/refund', (req: Request, res: Response) => {
+    // core only refunds captured/settled tx, so the example MUST authorize+capture first.
+    check(calls.authorize > 0, 'refund: must be preceded by an authorize call (charge -> authorize -> capture -> refund)');
+    check(calls.capture > 0, 'refund: must be preceded by a capture call (core only refunds captured/settled transactions)');
     check(typeof req.body?.amount === 'number', 'refund: core requires a numeric `amount`');
     res.json({ ...TX, status: 'refunded' });
   });

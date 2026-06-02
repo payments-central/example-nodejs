@@ -1,4 +1,6 @@
 import type {
+  AuthorizeParams,
+  CaptureParams,
   ChargeParams,
   CheckoutSession,
   CheckoutSessionParams,
@@ -75,6 +77,19 @@ export class PaymentsCentralClient {
       page,
       limit,
     });
+  }
+
+  // A fresh charge is `pending`. core only allows a refund once a transaction
+  // is captured (or settled), reachable via authorize -> capture. `authorize`
+  // drives pending -> authorized; `gateway_ref` is optional.
+  authorize(id: string, params: AuthorizeParams = {}): Promise<Transaction> {
+    return this.request<Transaction>('POST', `/api/v1/transactions/${id}/authorize`, params);
+  }
+
+  // `capture` drives authorized -> captured. core captures the full authorized
+  // amount; any `amount` passed is currently ignored by the capture route.
+  capture(id: string, params: CaptureParams = {}): Promise<Transaction> {
+    return this.request<Transaction>('POST', `/api/v1/transactions/${id}/capture`, params);
   }
 
   refund(id: string, params: RefundParams): Promise<Transaction> {

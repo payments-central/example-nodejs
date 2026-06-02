@@ -6,6 +6,19 @@ export interface ChargeParams {
   description: string;
 }
 
+export interface AuthorizeParams {
+  // Optional acquirer/gateway auth reference for direct (MOTO) integrations.
+  // When omitted, core mints a sandbox reference so downstream
+  // capture/refund/settlement records still have a stable handle.
+  gateway_ref?: string;
+}
+
+export interface CaptureParams {
+  // core captures the full authorized amount; `amount` is accepted for
+  // forward-compatibility but currently ignored by the capture route.
+  amount?: number;
+}
+
 export interface RefundParams {
   // core requires an explicit amount (minor units); `reason` is accepted but ignored.
   amount: number;
