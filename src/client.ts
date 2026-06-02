@@ -67,7 +67,7 @@ export class PaymentsCentralClient {
   }
 
   getTransaction(id: string): Promise<Transaction> {
-    return this.request<Transaction>('GET', `/api/v1/transactions/${id}`);
+    return this.request<Transaction>('GET', `/api/v1/transactions/${encodeURIComponent(id)}`);
   }
 
   // core paginates with `page` (1-based) and `limit`; `offset` is ignored.
@@ -83,17 +83,17 @@ export class PaymentsCentralClient {
   // is captured (or settled), reachable via authorize -> capture. `authorize`
   // drives pending -> authorized; `gateway_ref` is optional.
   authorize(id: string, params: AuthorizeParams = {}): Promise<Transaction> {
-    return this.request<Transaction>('POST', `/api/v1/transactions/${id}/authorize`, params);
+    return this.request<Transaction>('POST', `/api/v1/transactions/${encodeURIComponent(id)}/authorize`, params);
   }
 
   // `capture` drives authorized -> captured. core captures the full authorized
   // amount; any `amount` passed is currently ignored by the capture route.
   capture(id: string, params: CaptureParams = {}): Promise<Transaction> {
-    return this.request<Transaction>('POST', `/api/v1/transactions/${id}/capture`, params);
+    return this.request<Transaction>('POST', `/api/v1/transactions/${encodeURIComponent(id)}/capture`, params);
   }
 
   refund(id: string, params: RefundParams): Promise<Transaction> {
-    return this.request<Transaction>('POST', `/api/v1/transactions/${id}/refund`, params);
+    return this.request<Transaction>('POST', `/api/v1/transactions/${encodeURIComponent(id)}/refund`, params);
   }
 
   createCheckoutSession(params: CheckoutSessionParams): Promise<CheckoutSession> {

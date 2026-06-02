@@ -19,6 +19,7 @@
 import express, { type Request, type Response } from 'express';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { PaymentsCentralClient } from './client.js';
 
 const MOCK_PORT = 4011;
 const APP_PORT = 4010;
@@ -44,6 +45,10 @@ const TX = {
 // Tracks the lifecycle so the refund assertion can prove authorize + capture
 // ran first (charge -> authorize -> capture -> refund), matching UAT (RED-52).
 const calls = { authorize: 0, capture: 0 };
+
+// Records the decoded id Express saw on the most recent GET /:id call so the
+// RED-96 parity check can prove the client encodeURIComponent's the id.
+let lastGetId: string | null = null;
 
 function startMock(): Promise<ReturnType<typeof app.listen>> {
   const app = express();
@@ -74,7 +79,8 @@ function startMock(): Promise<ReturnType<typeof app.listen>> {
     res.json({ data: [TX], total: 1, page: Number(req.query.page), limit: Number(req.query.limit) });
   });
 
-  app.get('/api/v1/transactions/:id', (_req: Request, res: Response) => {
+  app.get('/api/v1/transactions/:id', (req: Request, res: Response) => {
+    lastGetId = req.params.id;
     res.json(TX);
   });
 
@@ -139,6 +145,27 @@ async function expectOk(method: string, path: string, label: string): Promise<vo
   check(ok, `${label}: demo route ${method} ${path} returned HTTP ${r.status}`);
 }
 
+// RED-96 parity check: the client must encodeURIComponent the id on every
+// /:id/... path (matching the PHP client's rawurlencode). API-minted UUIDs are
+// unaffected, so we probe with an id containing a reserved char (`#`). Without
+// encoding, fetch treats `#...` as a URL fragment and drops it, so the mock
+// would see `txn` instead of `txn#smoke`; the encoded `%23` round-trips intact.
+async function checkIdEncoding(): Promise<void> {
+  const client = new PaymentsCentralClient({
+    apiKey: 'sk_sandbox_smoke',
+    merchantId: 'mer_smoke',
+    baseUrl: `http://127.0.0.1:${MOCK_PORT}`,
+  });
+  const probeId = 'txn#smoke 96';
+  lastGetId = null;
+  await client.getTransaction(probeId);
+  check(
+    lastGetId === probeId,
+    `id encoding: client must encodeURIComponent the id on /:id paths ` +
+      `(expected mock to receive "${probeId}", saw "${lastGetId}")`,
+  );
+}
+
 async function main(): Promise<void> {
   const mock = await startMock();
 
@@ -160,6 +187,7 @@ async function main(): Promise<void> {
     await expectOk('GET', `/demo/transaction/${TX.id}`, 'get');
     await expectOk('POST', `/demo/refund/${TX.id}`, 'refund');
     await expectOk('POST', '/demo/checkout', 'checkout');
+    await checkIdEncoding();
   } finally {
     app.kill();
     mock.close();
