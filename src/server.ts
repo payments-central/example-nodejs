@@ -57,7 +57,7 @@ app.get('/', (_req: Request, res: Response) => {
     <li><span class="method post">POST</span><a href="#" onclick="post('/demo/charge')">/demo/charge</a> — charge $10.00 USD</li>
     <li><span class="method get">GET</span> <a href="/demo/transactions">/demo/transactions</a> — list last 10 transactions</li>
     <li><span class="method get">GET</span> <a href="/demo/transaction/REPLACE_ID">/demo/transaction/:id</a> — get a transaction by ID</li>
-    <li><span class="method post">POST</span><a href="#" onclick="post('/demo/refund/REPLACE_ID')">/demo/refund/:id</a> — refund a transaction</li>
+    <li><span class="method post">POST</span><a href="#" onclick="post('/demo/refund/REPLACE_ID')">/demo/refund/:id</a> — authorize → capture → refund a transaction</li>
     <li><span class="method post">POST</span><a href="#" onclick="post('/demo/checkout')">/demo/checkout</a> — create checkout session &amp; redirect</li>
   </ul>
   <p style="margin-top:2rem;font-size:0.85em">
@@ -117,12 +117,16 @@ app.get('/demo/transaction/:id', async (req: Request, res: Response) => {
 });
 
 app.post('/demo/refund/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
   try {
-    // core requires an explicit refund amount (minor units); fetch the
-    // transaction first so we can issue a full refund for its amount.
-    const tx = await client.getTransaction(req.params.id);
-    const refund = await client.refund(req.params.id, {
-      amount: tx.amount,
+    // A fresh charge is `pending`, and core only refunds captured/settled
+    // transactions ("Can only refund captured or settled transactions").
+    // Drive the full lifecycle: charge -> authorize -> capture -> refund.
+    await client.authorize(id);
+    const captured = await client.capture(id);
+    const refund = await client.refund(id, {
+      // refund the full captured amount (minor units); core requires `amount`.
+      amount: captured.amount,
       reason: 'Demo refund from Payments Central Node.js sample',
     });
     res.json(refund);
